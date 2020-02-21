@@ -13,3 +13,5 @@ log/
 target/
 dependency-reduced-pom.xml
 
+# SQLite DB
+/package-tracker.db
