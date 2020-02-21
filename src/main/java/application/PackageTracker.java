@@ -48,9 +48,19 @@ public class PackageTracker {
                 String locationName = scanner.nextLine();
                 createLocation(db, locationName);
             }
+            // 3.
+            else if (input.equals("3")){
+                System.out.print("Anna asiakkaan nimi: ");
+                String clientName = scanner.nextLine();
+                createClient(db, clientName);
+            }
             // 12.
             else if (input.equals("12")){
                 printLocations(db);
+            }
+            // 13.
+            else if (input.equals("13")){
+                printClients(db);
             }
         }
         
@@ -60,9 +70,13 @@ public class PackageTracker {
     public static void createDb(Connection db){
         try {
             Statement s = db.createStatement();
+            // Paikat
             s.execute("DROP TABLE IF EXISTS Paikat");
             s.execute("CREATE TABLE Paikat (id INTEGER PRIMARY KEY, nimi TEXT NOT NULL UNIQUE)");
-            
+            // Asiakkaat
+            s.execute("DROP TABLE IF EXISTS Asiakkaat");
+            s.execute("CREATE TABLE Asiakkaat (id INTEGER PRIMARY KEY, nimi TEXT NOT NULL UNIQUE)");
+
             // TODO create rest of the tables
             
             System.out.println("Tietokanta luotu.\n");
@@ -91,7 +105,17 @@ public class PackageTracker {
     // 3. Create new client by client name
     //      clientName is unique
     public static void createClient(Connection db, String clientName){
-        // TODO implementation, handle db constraint violations
+        PreparedStatement p = null;
+        try {
+            p = db.prepareStatement("INSERT INTO Asiakkaat(nimi) VALUES (?)");
+            p.setString(1, clientName);
+            p.executeUpdate();
+
+            System.out.println("Asiakas luotu.\n");
+
+        } catch (SQLException e) {
+            System.out.println("VIRHE: Asiakas on jo olemassa. \n" + e.getLocalizedMessage());
+        }
     }
     
     // 4. Create new package by tracking code and client name
@@ -141,4 +165,18 @@ public class PackageTracker {
             System.out.println("VIRHE: Paikkoja ei saada tulostettua. \n" + e.getLocalizedMessage());
         }
     }
+    
+    // 13. Print clients (for debug purposes only)
+    public static void printClients(Connection db){
+        try {
+            Statement s = db.createStatement();
+            ResultSet r = s.executeQuery("SELECT * FROM Asiakkaat");
+            while (r.next()) {
+                System.out.println(r.getInt("id")+" "+r.getString("nimi"));
+            }
+        } catch (SQLException e) {
+            System.out.println("VIRHE: Asiakkaita ei saada tulostettua. \n" + e.getLocalizedMessage());
+        }
+    }
+
 }
