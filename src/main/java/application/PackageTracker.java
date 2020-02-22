@@ -74,6 +74,12 @@ public class PackageTracker {
                 String description = scanner.nextLine();
                 createEvent(db, trackingCode, locationName, description);
             }
+            // 6.
+            else if (input.equals("6")){
+                System.out.print("Anna paketin seurantakoodi: ");
+                String trackingCode = scanner.nextLine();
+                printEventsByTrackingCode(db, trackingCode);
+            }
             // 12.
             else if (input.equals("12")){
                 printLocations(db);
@@ -205,7 +211,20 @@ public class PackageTracker {
     
     // 6. Print events by tracking code
     public static void printEventsByTrackingCode(Connection db, String trackingCode){
-        // TODO implementation
+        try {
+            PreparedStatement p = db.prepareStatement("SELECT t.timestamp, paik.nimi, t.kuvaus\n" +
+                    "FROM Tapahtumat t \n" +
+                    "    inner join Paketit p on p.id = t.paketti_id\n" +
+                    "    inner join Paikat paik on paik.id = t.paikka_id\n" +
+                    "WHERE p.koodi = ?;");
+            p.setString(1, trackingCode);
+            ResultSet r = p.executeQuery();
+            while (r.next()) {
+                System.out.println(r.getString("timestamp")+", "+r.getString("nimi")+", "+r.getString("kuvaus"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
     
     // 7. Print packages by client name
@@ -326,7 +345,6 @@ public class PackageTracker {
         Date date = new Date(System.currentTimeMillis());
         SimpleDateFormat sdf;
         sdf = new SimpleDateFormat("dd.MM.yyyy HH:mm");
-        //sdf.setTimeZone(TimeZone.getTimeZone("CET"));
         return sdf.format(date);
     }
 
