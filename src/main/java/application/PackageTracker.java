@@ -80,6 +80,20 @@ public class PackageTracker {
                 String trackingCode = scanner.nextLine();
                 printEventsByTrackingCode(db, trackingCode);
             }
+            // 7.
+            else if (input.equals("7")){
+                System.out.print("Anna asiakkaan nimi: ");
+                String clientName = scanner.nextLine();
+                printPackagesByClientName(db, clientName);
+            }
+            // 8.
+            else if (input.equals("8")){
+                System.out.print("Anna paikan nimi: ");
+                String locationName = scanner.nextLine();
+                System.out.print("Anna päivämäärä: ");
+                String date = scanner.nextLine();
+                printEventNumberByLocationNameAndDate(db, locationName, date);
+            }
             // 12.
             else if (input.equals("12")){
                 printLocations(db);
@@ -212,10 +226,10 @@ public class PackageTracker {
     // 6. Print events by tracking code
     public static void printEventsByTrackingCode(Connection db, String trackingCode){
         try {
-            PreparedStatement p = db.prepareStatement("SELECT t.timestamp, paik.nimi, t.kuvaus\n" +
-                    "FROM Tapahtumat t \n" +
-                    "    inner join Paketit p on p.id = t.paketti_id\n" +
-                    "    inner join Paikat paik on paik.id = t.paikka_id\n" +
+            PreparedStatement p = db.prepareStatement("SELECT t.timestamp, paik.nimi, t.kuvaus " +
+                    "FROM Tapahtumat t " +
+                    "    inner join Paketit p on p.id = t.paketti_id " +
+                    "    inner join Paikat paik on paik.id = t.paikka_id " +
                     "WHERE p.koodi = ?;");
             p.setString(1, trackingCode);
             ResultSet r = p.executeQuery();
@@ -223,19 +237,45 @@ public class PackageTracker {
                 System.out.println(r.getString("timestamp")+", "+r.getString("nimi")+", "+r.getString("kuvaus"));
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            System.out.println("Virhe: " + e.getLocalizedMessage());
         }
     }
     
     // 7. Print packages by client name
     public static void printPackagesByClientName(Connection db, String clientName){
-        // TODO implementation
+        try {
+            PreparedStatement p = db.prepareStatement("SELECT pak.koodi, (SELECT COUNT(*) FROM Tapahtumat WHERE paketti_id = pak.id) as lkm " +
+                    "FROM Paketit pak " +
+                    "    inner join Asiakkaat a on a.id = pak.asiakas_id " +
+                    "WHERE a.nimi = ?;");
+            p.setString(1, clientName);
+            ResultSet r = p.executeQuery();
+            while (r.next()){
+                System.out.println(r.getString("koodi") + ", " + r.getInt("lkm") +" tapahtumaa");
+            }
+        } catch (SQLException e) {
+            System.out.println("Virhe: " + e.getLocalizedMessage());
+        }
     }
     
     // 8. Print event number by location and date
-    //      TODO: check date format!
-    public static void printEventNumberByLocationNameAndDate(Connection db, String locationName, String date){
-        // TODO implementation
+    public static void printEventNumberByLocationNameAndDate(Connection db, String locationName, String timestamp){
+        try {
+            PreparedStatement p = db.prepareStatement("SELECT COUNT(*) as lkm " +
+                    "FROM Tapahtumat t " +
+                    "    inner join Paikat p on p.id = t.paikka_id " +
+                    "WHERE instr(t.timestamp, ?) AND " +
+                    "      p.nimi = ? " +
+                    ";");
+            p.setString(1, timestamp);
+            p.setString(2, locationName);
+            ResultSet r = p.executeQuery();
+            while (r.next()){
+                System.out.println("Tapahtumien määrä: " + r.getInt("lkm"));
+            }
+        } catch (SQLException e) {
+            System.out.println("Virhe: " + e.getLocalizedMessage());
+        }
     }
     
     // 9. Efficiency test
