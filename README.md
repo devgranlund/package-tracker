@@ -19,8 +19,5 @@ Run manually:
 * mvn clean package
 * java -jar target/package-tracker-1.0-SNAPSHOT.jar
 
-
-
-
 ## TODO
 * Implement rest of the db functionality.

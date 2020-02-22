@@ -1,5 +1,6 @@
 package application;
 
+import java.util.Optional;
 import java.util.Scanner;
 import java.sql.*;
 
@@ -54,6 +55,14 @@ public class PackageTracker {
                 String clientName = scanner.nextLine();
                 createClient(db, clientName);
             }
+            // 4.
+            else if (input.equals("4")){
+                System.out.print("Anna paketin seurantakoodi: " );
+                String trackingCode = scanner.nextLine();
+                System.out.print("Anna asiakkaan nimi: ");
+                String clientName = scanner.nextLine();
+                createPackage(db, trackingCode, clientName);
+            }
             // 12.
             else if (input.equals("12")){
                 printLocations(db);
@@ -62,8 +71,11 @@ public class PackageTracker {
             else if (input.equals("13")){
                 printClients(db);
             }
+            // 14.
+            else if (input.equals("14")){
+                printPackages(db);
+            }
         }
-        
     }
     
     // 1. Crete Database
@@ -76,9 +88,13 @@ public class PackageTracker {
             // Asiakkaat
             s.execute("DROP TABLE IF EXISTS Asiakkaat");
             s.execute("CREATE TABLE Asiakkaat (id INTEGER PRIMARY KEY, nimi TEXT NOT NULL UNIQUE)");
+            // Paketit
+            s.execute("DROP TABLE IF EXISTS Paketit");
+            s.execute("CREATE TABLE Paketit (id INTEGER PRIMARY KEY, koodi STRING UNIQUE NOT NULL, asiakas_id INTEGER REFERENCES Asiakkaat ON DELETE CASCADE)");
+            // Tapahtumat
+            s.execute("DROP TABLE IF EXISTS Tapahtumat");
+            s.execute("CREATE TABLE Tapahtumat (id INTEGER PRIMARY KEY, timestamp TEXT, kuvaus TEXT, paketti_id STRING REFERENCES Paketit ON DELETE CASCADE)");
 
-            // TODO create rest of the tables
-            
             System.out.println("Tietokanta luotu.\n");
             
         } catch (SQLException e) {
@@ -122,7 +138,21 @@ public class PackageTracker {
     //      tracking code is unique
     //      client must exist in DB
     public static void createPackage(Connection db, String trackingCode, String clientName){
-        // TODO implementation, handle db constraint violations
+        Optional<Integer> clientId = getClientIdByName(db, clientName);
+        if (clientId.isPresent()){
+            try {
+                PreparedStatement p = db.prepareStatement("INSERT INTO Paketit(koodi, asiakas_id) VALUES (?,?)");
+                p.setString(1, trackingCode);
+                p.setInt(2, clientId.get());
+                p.executeUpdate();
+
+                System.out.println("Paketti lisätty.\n");
+            } catch (SQLException e) {
+                System.out.println("VIRHE: Pakettikoodi on jo olemassa. \n" + e.getLocalizedMessage());
+            }
+        } else {
+            System.out.println("VIRHE: Asiakasta ei ole olemassa. \n");
+        }
     }
     
     // 5. Create new event by tracking code, location name and event description
@@ -177,6 +207,34 @@ public class PackageTracker {
         } catch (SQLException e) {
             System.out.println("VIRHE: Asiakkaita ei saada tulostettua. \n" + e.getLocalizedMessage());
         }
+    }
+
+    // 14. Print packages (for debug purposes only)
+    public static void printPackages(Connection db){
+        try {
+            Statement s = db.createStatement();
+            ResultSet r = s.executeQuery("SELECT * FROM Paketit");
+            while (r.next()) {
+                System.out.println(r.getInt("id")+" "+r.getString("koodi")+r.getInt("asiakas_id"));
+            }
+        } catch (SQLException e) {
+            System.out.println("VIRHE: Paketteja ei saada tulostettua. \n" + e.getLocalizedMessage());
+        }
+    }
+    
+    private static Optional<Integer> getClientIdByName(Connection db, String clientName){
+        try {
+            PreparedStatement p = db.prepareStatement("SELECT id FROM Asiakkaat WHERE nimi=?");
+            p.setString(1, clientName);
+            ResultSet r = p.executeQuery();
+            if (r.next()){
+                return Optional.of(r.getInt("id"));
+            } 
+        } catch (SQLException e) {
+            System.out.println("VIRHE: " + e.getLocalizedMessage());
+
+        }
+        return Optional.empty();
     }
 
 }
