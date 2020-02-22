@@ -1,5 +1,6 @@
 package application;
 
+import java.text.SimpleDateFormat;
 import java.util.Optional;
 import java.util.Scanner;
 import java.sql.*;
@@ -63,6 +64,16 @@ public class PackageTracker {
                 String clientName = scanner.nextLine();
                 createPackage(db, trackingCode, clientName);
             }
+            // 5. 
+            else if (input.equals("5")){
+                System.out.print("Anna paketin seurantakoodi: ");
+                String trackingCode = scanner.nextLine();
+                System.out.print("Anna tapahtuman paikka: ");
+                String locationName = scanner.nextLine();
+                System.out.print("Anna tapahtuman kuvaus: ");
+                String description = scanner.nextLine();
+                createEvent(db, trackingCode, locationName, description);
+            }
             // 12.
             else if (input.equals("12")){
                 printLocations(db);
@@ -75,7 +86,13 @@ public class PackageTracker {
             else if (input.equals("14")){
                 printPackages(db);
             }
+            // 15.
+            else if (input.equals("15")){
+                printEvents(db);
+            }
         }
+        
+        db.close();
     }
     
     // 1. Crete Database
@@ -90,10 +107,13 @@ public class PackageTracker {
             s.execute("CREATE TABLE Asiakkaat (id INTEGER PRIMARY KEY, nimi TEXT NOT NULL UNIQUE)");
             // Paketit
             s.execute("DROP TABLE IF EXISTS Paketit");
-            s.execute("CREATE TABLE Paketit (id INTEGER PRIMARY KEY, koodi STRING UNIQUE NOT NULL, asiakas_id INTEGER REFERENCES Asiakkaat ON DELETE CASCADE)");
+            s.execute("CREATE TABLE Paketit (id INTEGER PRIMARY KEY, koodi STRING UNIQUE NOT NULL, " +
+                    "asiakas_id INTEGER REFERENCES Asiakkaat ON DELETE CASCADE)");
             // Tapahtumat
             s.execute("DROP TABLE IF EXISTS Tapahtumat");
-            s.execute("CREATE TABLE Tapahtumat (id INTEGER PRIMARY KEY, timestamp TEXT, kuvaus TEXT, paketti_id STRING REFERENCES Paketit ON DELETE CASCADE)");
+            s.execute("CREATE TABLE Tapahtumat (id INTEGER PRIMARY KEY, timestamp TEXT, kuvaus TEXT, " +
+                    "paketti_id INTEGER REFERENCES Paketit ON DELETE CASCADE, " +
+                    "paikka_id INTEGER REFERENCES Paikat ON DELETE CASCADE)");
 
             System.out.println("Tietokanta luotu.\n");
             
@@ -159,7 +179,28 @@ public class PackageTracker {
     //      tracking code must exist in DB (= package exists)
     //      location name must exist in DB (= location exists)
     public static void createEvent(Connection db, String trackingCode, String locationName, String description){
-        // TODO implementation, handle db constraint violations
+        Optional<Integer> packageId = getPackageIdByTrackingCode(db, trackingCode);
+        if (packageId.isPresent() == false){
+            System.out.println("VIRHE: Pakettia ei ole olemassa. \n");
+            return;
+        }
+        Optional<Integer> locationId = getLocationIdByName(db, locationName);
+        if (locationId.isPresent() == false){
+            System.out.println("VIRHE: Paikkaa ei ole olemassa. \n");
+            return;
+        }
+        try {
+            PreparedStatement p = db.prepareStatement("INSERT INTO Tapahtumat(timestamp, kuvaus, paketti_id, paikka_id) VALUES (?,?,?,?)");
+            p.setString(1, getCurrentTimeAsString());
+            p.setString(2, description);
+            p.setInt(3, packageId.get());
+            p.setInt(4, locationId.get());
+            p.executeUpdate();
+
+            System.out.println("Tapahtuma lisätty.\n");
+        } catch (SQLException e) {
+            System.out.println("VIRHE: Tapahtuma virheellinen. \n" + e.getLocalizedMessage());
+        }
     }
     
     // 6. Print events by tracking code
@@ -221,6 +262,22 @@ public class PackageTracker {
             System.out.println("VIRHE: Paketteja ei saada tulostettua. \n" + e.getLocalizedMessage());
         }
     }
+
+    // 15. Print events (for debug purposes only)
+    public static void printEvents(Connection db){
+        try {
+            Statement s = db.createStatement();
+            ResultSet r = s.executeQuery("SELECT * FROM Tapahtumat");
+            while (r.next()) {
+                System.out.println(r.getInt("id")+" "+r.getString("timestamp")
+                        +" "+r.getString("kuvaus")
+                        +" "+r.getInt("paikka_id")
+                        +" "+r.getInt("paketti_id"));
+            }
+        } catch (SQLException e) {
+            System.out.println("VIRHE: Tapahtumia ei saada tulostettua. \n" + e.getLocalizedMessage());
+        }
+    }
     
     private static Optional<Integer> getClientIdByName(Connection db, String clientName){
         try {
@@ -235,6 +292,42 @@ public class PackageTracker {
 
         }
         return Optional.empty();
+    }
+    
+    private static Optional<Integer> getLocationIdByName(Connection db, String locationName){
+        try {
+            PreparedStatement p = db.prepareStatement("SELECT id FROM Paikat WHERE nimi=?");
+            p.setString(1, locationName);
+            ResultSet r = p.executeQuery();
+            if (r.next()){
+                return Optional.of(r.getInt("id"));
+            }
+        } catch (SQLException e) {
+            System.out.println("VIRHE: " + e.getLocalizedMessage());
+        }
+        return Optional.empty();
+    }
+    
+    private static Optional<Integer> getPackageIdByTrackingCode(Connection db, String trackingCode){
+        try {
+            PreparedStatement p = db.prepareStatement("SELECT id FROM Paketit WHERE koodi=?");
+            p.setString(1, trackingCode);
+            ResultSet r = p.executeQuery();
+            if (r.next()){
+                return Optional.of(r.getInt("id"));
+            }
+        } catch (SQLException e) {
+            System.out.println("VIRHE: " + e.getLocalizedMessage());
+        }
+        return Optional.empty();
+    }
+    
+    private static String getCurrentTimeAsString(){
+        Date date = new Date(System.currentTimeMillis());
+        SimpleDateFormat sdf;
+        sdf = new SimpleDateFormat("dd.MM.yyyy HH:mm");
+        //sdf.setTimeZone(TimeZone.getTimeZone("CET"));
+        return sdf.format(date);
     }
 
 }
