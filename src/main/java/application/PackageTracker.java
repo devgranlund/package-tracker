@@ -94,6 +94,14 @@ public class PackageTracker {
                 String date = scanner.nextLine();
                 printEventNumberByLocationNameAndDate(db, locationName, date);
             }
+            // 9.
+            else if (input.equals("9")){
+                try {
+                    efficiencyTest();
+                } catch (SQLException e) {
+                    System.out.println("Virhe: " + e.getLocalizedMessage());
+                }
+            }
             // 12.
             else if (input.equals("12")){
                 printLocations(db);
@@ -134,6 +142,7 @@ public class PackageTracker {
             s.execute("CREATE TABLE Tapahtumat (id INTEGER PRIMARY KEY, timestamp TEXT, kuvaus TEXT, " +
                     "paketti_id INTEGER REFERENCES Paketit ON DELETE CASCADE, " +
                     "paikka_id INTEGER REFERENCES Paikat ON DELETE CASCADE)");
+            s.close();
 
             System.out.println("Tietokanta luotu.\n");
             
@@ -278,11 +287,6 @@ public class PackageTracker {
         }
     }
     
-    // 9. Efficiency test
-    public static void doEfficiencyTest(Connection db){
-        // TODO implementation
-    }
-    
     // 12. Print locations (for debug purposes only)
     public static void printLocations(Connection db){
         try {
@@ -386,6 +390,122 @@ public class PackageTracker {
         SimpleDateFormat sdf;
         sdf = new SimpleDateFormat("dd.MM.yyyy HH:mm");
         return sdf.format(date);
+    }
+    
+    public static void efficiencyTest() throws SQLException {
+        Connection db = DriverManager.getConnection("jdbc:sqlite:package-tracker.db");
+        Statement s = db.createStatement();
+        //db.setAutoCommit(false);
+
+        // 1. Add thousand places to db
+        long nanoTime1 = System.nanoTime();
+        s.execute("BEGIN TRANSACTION ");
+        PreparedStatement p = db.prepareStatement("INSERT INTO Paikat(nimi) VALUES (?)");
+        for (int i = 1; i <= 1000; i++){
+            p.setString(1, "P"+i);
+            p.executeUpdate();
+        }
+        s.execute("COMMIT");
+        long nanoTime2 = System.nanoTime();
+        System.out.println("Tuhat paikkaa kantaan "+(nanoTime2-nanoTime1)/1e9+" sekuntia");
+        
+        // 2. Add thousand customers to db
+        nanoTime1 = System.nanoTime();
+        s.execute("BEGIN TRANSACTION ");
+        p = db.prepareStatement("INSERT INTO Asiakkaat(nimi) VALUES (?)");
+        for (int i = 1; i <= 1000; i++){
+            p.setString(1, "A"+i);
+            p.executeUpdate();
+        }
+        s.execute("COMMIT");
+        nanoTime2 = System.nanoTime();
+        System.out.println("Tuhat asiakkaat kantaan "+(nanoTime2-nanoTime1)/1e9+" sekuntia");
+
+        // 3. Add thousand packages
+        nanoTime1 = System.nanoTime();
+        s.execute("BEGIN TRANSACTION ");
+        ResultSet r = s.executeQuery("SELECT id FROM Asiakkaat LIMIT 1");
+        int id = 0;
+        while(r.next()){
+            id = r.getInt("id");
+        }
+        p = db.prepareStatement("INSERT INTO Paketit(koodi, asiakas_id) VALUES (?,?)");
+        for (int i = 1; i <= 1000; i++){
+            p.setString(1, "PAK"+i);
+            p.setInt(2, id);
+            p.executeUpdate();
+        }
+        s.execute("COMMIT");
+        nanoTime2 = System.nanoTime();
+        System.out.println("Tuhat pakettia kantaan "+(nanoTime2-nanoTime1)/1e9+" sekuntia");
+
+        // 4. Add million events
+        nanoTime1 = System.nanoTime();
+        s.execute("BEGIN TRANSACTION ");
+        ResultSet r1 = s.executeQuery("SELECT id FROM Paketit LIMIT 1");
+        while(r1.next()){
+            id = r1.getInt("id");
+        }
+        int locationId = 0;
+        ResultSet r2 = s.executeQuery("SELECT id FROM Paikat LIMIT 1");
+        while (r2.next()){
+            locationId = r2.getInt("id");
+        }
+        p = db.prepareStatement("INSERT INTO Tapahtumat(timestamp, kuvaus, paketti_id, paikka_id) VALUES (?,?,?,?)");
+        for (int i = 1; i <= 1000000; i++){
+            p.setString(1, getCurrentTimeAsString());
+            p.setString(2, "description"+i);
+            p.setInt(3, id);
+            p.setInt(4, locationId);
+            p.executeUpdate();
+        }
+        s.execute("COMMIT");
+        nanoTime2 = System.nanoTime();
+        System.out.println("Miljoona tapahtumaa kantaan "+(nanoTime2-nanoTime1)/1e9+" sekuntia");
+        
+        // 5. Suoritetaan tuhat kyselyä, joista jokaisessa haetaan jonkin asiakkaan pakettien määrä.
+        nanoTime1 = System.nanoTime();
+        s.execute("BEGIN TRANSACTION ");
+        ResultSet r3 = s.executeQuery("SELECT id FROM Asiakkaat LIMIT 1");
+        id = 0;
+        while(r3.next()){
+            id = r3.getInt("id");
+        }
+        p = db.prepareStatement("SELECT COUNT(*) as lkm\n" +
+                "FROM Paketit p\n" +
+                "    inner join Asiakkaat A on p.asiakas_id = A.id\n" +
+                "WHERE A.id = ?" +
+                ";");
+        for (int i = 1; i <= 1000; i++){
+            p.setInt(1, id);
+            p.executeQuery();
+        }
+        s.execute("COMMIT");
+        nanoTime2 = System.nanoTime();
+        System.out.println("Tuhat kyselyä asiakkaan pakettimääriin "+(nanoTime2-nanoTime1)/1e9+" sekuntia");
+
+        // 6. Suoritetaan tuhat kyselyä, joista jokaisessa haetaan jonkin paketin tapahtumien määrä.
+        nanoTime1 = System.nanoTime();
+        s.execute("BEGIN TRANSACTION ");
+        ResultSet r4 = s.executeQuery("SELECT id FROM Paketit LIMIT 1");
+        id = 0;
+        while(r4.next()){
+            id = r4.getInt("id");
+        }
+        p = db.prepareStatement("SELECT COUNT(*) as lkm\n" +
+                "FROM Tapahtumat T\n" +
+                "    inner join Paketit P on T.paketti_id = P.id\n" +
+                "WHERE P.id = ? " +
+                ";");
+        for (int i = 1; i <= 1000; i++){
+            p.setInt(1, id);
+            p.executeQuery();
+        }
+        s.execute("COMMIT");
+        nanoTime2 = System.nanoTime();
+        System.out.println("Tuhat kyselyä paketin tapahtumamääriin "+(nanoTime2-nanoTime1)/1e9+" sekuntia");
+        
+        db.close();
     }
 
 }
